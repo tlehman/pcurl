@@ -10,25 +10,40 @@ import (
 	"time"
 )
 
-func downloadFile(url string, concurrency int) error {
-	// Get the file size
-	resp, err := http.Head(url)
+func createOutputFileWithSize(filename string, size int64) error {
+	outputFile, err := os.Create(filename)
+	defer outputFile.Close()
 	if err != nil {
 		return err
+	}
+	for i := 0; i < int(size); i++ {
+		outputFile.Write([]byte("0"))
+	}
+	return nil
+}
+
+func getRemoteFileSize(url string) (int64, error) {
+	// Get the file size
+	resp, err := http.DefaultClient.Head(url)
+	if err != nil {
+		return int64(-1), err
 	}
 	defer resp.Body.Close()
 
 	fileSize := resp.ContentLength
 	if fileSize <= 0 {
-		return fmt.Errorf("unable to determine file size")
+		return int64(-1), fmt.Errorf("unable to determine file size")
 	}
+	return fileSize, nil
+}
 
-	// Create the output file
-	outputFile, err := os.Create("output_file")
+func downloadFile(url string, concurrency int) error {
+
+	// Get the file size
+	fileSize, err := getRemoteFileSize(url)
 	if err != nil {
 		return err
 	}
-	defer outputFile.Close()
 
 	// Calculate the chunk size for each goroutine
 	chunkSize := fileSize / int64(concurrency)
@@ -48,7 +63,17 @@ func downloadFile(url string, concurrency int) error {
 		}
 
 		go func(start, end int64) {
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableKeepAlives = true // make a new connection for each request
+
+			client := &http.Client{
+				Transport: transport,
+			}
 			defer wg.Done()
+
+			// open a new file descriptor for each goroutine and seek to the correct start position
+			outputFile, _ := os.OpenFile("output_file", os.O_WRONLY, 0644)
+			outputFile.Seek(start, 0)
 
 			// Create a new HTTP request with the range header
 			req, err := http.NewRequest("GET", url, nil)
@@ -59,7 +84,7 @@ func downloadFile(url string, concurrency int) error {
 			req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
 
 			// Execute the request
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := client.Do(req)
 			if err != nil {
 				fmt.Printf("Error executing request: %v\n", err)
 				return
@@ -105,7 +130,7 @@ func main() {
 	timeEnd := time.Now()
 
 	// measure file size
-	fileInfo, err := os.Stat("output_file")
+	fileInfo, _ := os.Stat("output_file")
 	fileInfo.Size()
 
 	speedMiBps := float64(fileInfo.Size()) / timeEnd.Sub(timeStart).Seconds() / 1024 / 1024
