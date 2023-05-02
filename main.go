@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 func downloadFile(url string, concurrency int) error {
@@ -95,11 +96,23 @@ func main() {
 		return
 	}
 
+	timeStart := time.Now()
 	err = downloadFile(url, concurrency)
 	if err != nil {
 		fmt.Printf("Error downloading file: %v\n", err)
 		return
 	}
+	timeEnd := time.Now()
 
-	fmt.Println("File downloaded successfully!")
+	// measure file size
+	fileInfo, err := os.Stat("output_file")
+	fileInfo.Size()
+
+	speedMiBps := float64(fileInfo.Size()) / timeEnd.Sub(timeStart).Seconds() / 1024 / 1024
+
+	fmt.Printf(
+		"File downloaded in %.0f seconds at %.0f MiB/s!\n",
+		timeEnd.Sub(timeStart).Seconds(),
+		speedMiBps,
+	)
 }

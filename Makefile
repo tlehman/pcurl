@@ -2,4 +2,4 @@ all:
 	go build
 
 clean:
-	rm ./pcurl
+	rm ./pget
