@@ -37,7 +37,7 @@ func getRemoteFileSize(url string) (int64, error) {
 	return fileSize, nil
 }
 
-func downloadFile(url string, concurrency int) error {
+func downloadFile(url string, outputFilename string, concurrency int) error {
 
 	// Get the file size
 	fileSize, err := getRemoteFileSize(url)
@@ -72,7 +72,7 @@ func downloadFile(url string, concurrency int) error {
 			defer wg.Done()
 
 			// open a new file descriptor for each goroutine and seek to the correct start position
-			outputFile, _ := os.OpenFile("output_file", os.O_WRONLY, 0644)
+			outputFile, _ := os.OpenFile(outputFilename, os.O_WRONLY, 0644)
 			outputFile.Seek(start, 0)
 
 			// Create a new HTTP request with the range header
@@ -121,8 +121,10 @@ func main() {
 		return
 	}
 
+	outputFilename := "/dev/shm/"
+
 	timeStart := time.Now()
-	err = downloadFile(url, concurrency)
+	err = downloadFile(url, outputFilename, concurrency)
 	if err != nil {
 		fmt.Printf("Error downloading file: %v\n", err)
 		return
